@@ -1,17 +1,21 @@
 import React from 'react';
 import Header from './components/Header';
-import Hero from './components/Hero';
-import CategoryCards from './components/CategoryCards';
+import Hero from './components/HeroSlider';
 import { navCategories } from './data/categoriesData';
+import ActionButtons from './components/ActionButtons';
+import BrandTicker from './components/BrandTicker';
+import Footer from './components/Footer';
 
 function App() {
   return (
     <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-white transition-colors duration-200">
       <Header />
-      <main>
+      <main className="pt-[168px] md:pt-[136px]">
         <Hero />
-        <CategoryCards categories={navCategories}/>
+        <ActionButtons />
+        <BrandTicker />
       </main>
+      <Footer />
     </div>
   );
 }
