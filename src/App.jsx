@@ -5,6 +5,7 @@ import { navCategories } from './data/categoriesData';
 import ActionButtons from './components/ActionButtons';
 import BrandTicker from './components/BrandTicker';
 import Footer from './components/Footer';
+import LatestReleases from './components/LatestProducts';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Hero />
         <ActionButtons />
         <BrandTicker />
+        <LatestReleases />
       </main>
       <Footer />
     </div>
