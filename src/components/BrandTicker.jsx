@@ -17,13 +17,13 @@ export default function BrandTicker({ brands = [] }) {
   const marqueeList = [...brandList, ...brandList];
 
   return (
-    <section className="py-12 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-200 overflow-hidden">
+    <section className="py-12 bg-[#080c14] text-white transition-colors duration-200 overflow-hidden">
       {/* Header */}
       <div className="text-center mb-8 px-4">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
           Trusted by Leading Brands
         </h2>
-        <p className="mt-2 text-sm sm:text-base text-slate-600 dark:text-slate-400">
+        <p className="mt-2 text-sm sm:text-base text-slate-400">
           Official partners across gaming, business, and enterprise tech
         </p>
       </div>
@@ -32,17 +32,18 @@ export default function BrandTicker({ brands = [] }) {
       <div className="relative w-full overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)]">
         <div className="flex w-max animate-marquee space-x-6 hover:[animation-play-state:paused]">
           {marqueeList.map((brand, index) => (
-            <a href={brand.ref}><div
-              key={`${brand.id}-${index}`}
-              className="flex items-center justify-center w-40 sm:w-48 h-24 sm:h-28 px-6 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 shrink-0 transition-transform duration-300 hover:scale-105"
-            >
-              <img
-                src={brand.logoUrl}
-                alt={brand.name}
-                className="max-h-12 sm:max-h-16 w-auto object-contain dark:brightness-90 dark:contrast-125"
-                loading="lazy"
-              />
-            </div></a>
+            <a key={`${brand.id}-${index}`} href={brand.ref}>
+              <div
+                className="flex items-center justify-center w-40 sm:w-48 h-24 sm:h-28 px-6 bg-[#0f172a]/80 border border-slate-800/80 hover:border-indigo-500/50 rounded-2xl shadow-sm shrink-0 transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+              >
+                <img
+                  src={brand.logoUrl}
+                  alt={brand.name}
+                  className="max-h-12 sm:max-h-16 w-auto object-contain brightness-100 contrast-125"
+                  loading="lazy"
+                />
+              </div>
+            </a>
           ))}
         </div>
       </div>

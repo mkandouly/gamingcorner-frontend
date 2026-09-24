@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { navCategories } from '../data/categoriesData';
+import { useCart } from './CartContext'; // Adjust path if your CartContext is elsewhere
 
-export default function Header() {
+export default function Header({ onOpenCart, products = [] }) {
+  const { cart, totalItems } = useCart();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMobileCategory, setActiveMobileCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -11,18 +13,33 @@ export default function Header() {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
+  // Calculate live total price from cart items with property and string fallback
+  const totalPrice = cart.reduce((sum, item) => {
+    const product = products.find((p) => String(p.id) === String(item.id)) || {};
+    
+    // Check matched product object first, then fall back to properties stored directly on the cart item
+    const rawPrice =
+      product.sale_price ??
+      product.price ??
+      item.sale_price ??
+      item.price ??
+      0;
+
+    const itemPrice = Number(rawPrice) || 0;
+    return sum + itemPrice * item.quantity;
+  }, 0);
+
   // Hide header on scroll down, reveal on scroll up
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
-      // Keep visible if mobile menu is open or at top of page (< 100px)
       if (isMobileMenuOpen || currentScrollY < 100) {
         setIsVisible(true);
       } else if (currentScrollY > lastScrollY) {
-        setIsVisible(false); // Hide scrolling down
+        setIsVisible(false);
       } else {
-        setIsVisible(true);  // Show scrolling up
+        setIsVisible(true);
       }
 
       setLastScrollY(currentScrollY);
@@ -32,7 +49,7 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY, isMobileMenuOpen]);
 
-  // Sync theme safely on mount (prevents SSR hydration mismatch)
+  // Sync theme safely on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -70,7 +87,7 @@ export default function Header() {
 
   return (
     <header
-      className={`w-full bg-white dark:bg-slate-900 border-b-2 border-blue-600 font-sans fixed top-0 left-0 right-0 z-50 shadow-md dark:shadow-xl transition-all duration-300 ease-in-out ${
+      className={`w-full bg-white dark:bg-slate-900 border-b-2 border-blue-600 font-sans sticky top-0 left-0 right-0 z-50 shadow-md dark:shadow-xl transition-all duration-300 ease-in-out ${
         isVisible ? 'translate-y-0' : '-translate-y-full'
       }`}
     >
@@ -161,15 +178,26 @@ export default function Header() {
             <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">3</span>
           </a>
 
-          <a href="#cart" className="relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-colors text-white">
+          {/* ACTIVE CART BUTTON */}
+          <button
+            onClick={onOpenCart}
+            aria-label="Open Cart"
+            className="relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-colors text-white"
+          >
             <div className="relative">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
               </svg>
-              <span className="absolute -top-2 -right-2 bg-slate-900 text-blue-400 text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-blue-400">2</span>
+              {totalItems > 0 && (
+                <span className="absolute -top-2 -right-2 bg-slate-900 text-blue-400 text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-blue-400">
+                  {totalItems}
+                </span>
+              )}
             </div>
-            <span className="hidden md:inline text-sm font-bold tracking-wide">$1,249.00</span>
-          </a>
+            <span className="hidden md:inline text-sm font-bold tracking-wide font-mono">
+              ${totalPrice.toFixed(2)}
+            </span>
+          </button>
         </div>
       </div>
 

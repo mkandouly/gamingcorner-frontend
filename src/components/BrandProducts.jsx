@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Loader2, Tag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Loader2, Tag } from 'lucide-react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useCart } from './CartContext'; // Adjust import path as needed
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
-export default function BrandProducts({ brandId, brandName, onProductClick }) {
+export default function BrandProducts({ brandId, brandName, onOpenCart }) {
   const [products, setProducts] = useState([]);
   const [displayTitle, setDisplayTitle] = useState(brandName || '');
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef(null);
+
+  const navigate = useNavigate();
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const fetchBrandProducts = async () => {
@@ -47,6 +52,22 @@ export default function BrandProducts({ brandId, brandName, onProductClick }) {
     if (scrollRef.current) {
       const scrollAmount = direction === 'left' ? -350 : 350;
       scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const handleProductCardClick = (product) => {
+    // Navigates to product route and passes pre-fetched product object in state
+    navigate(`/product/${product.id}`, { state: { product } });
+  };
+
+  const handleAddToCart = (e, product) => {
+    // Prevents opening the product page when clicking the + button
+    e.stopPropagation();
+    if (addToCart) {
+      addToCart(product);
+    }
+    if (onOpenCart) {
+      onOpenCart();
     }
   };
 
@@ -108,7 +129,7 @@ export default function BrandProducts({ brandId, brandName, onProductClick }) {
           return (
             <div
               key={product.id}
-              onClick={() => onProductClick && onProductClick(product)}
+              onClick={() => handleProductCardClick(product)}
               className="
                 snap-start cursor-pointer group rounded-2xl bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800/80 
                 hover:border-indigo-500/40 shadow-sm dark:shadow-none transition-all duration-200 overflow-hidden flex flex-col justify-between p-3.5
@@ -160,8 +181,14 @@ export default function BrandProducts({ brandId, brandName, onProductClick }) {
                     )}
                   </div>
 
-                  <button className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                    <ShoppingBag className="w-3.5 h-3.5" />
+                  {/* Add To Cart Button (+) */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleAddToCart(e, product)}
+                    aria-label={`Add ${product.name} to cart`}
+                    className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition-colors active:scale-90"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>

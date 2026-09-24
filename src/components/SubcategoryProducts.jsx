@@ -1,43 +1,82 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingBag, Plus, Loader2 } from 'lucide-react';
+import { useCart } from './CartContext';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
-export default function SubcategoryProducts({ subcategorySlug, onProductClick }) {
+export default function SubcategoryProducts({ subcategorySlug, onOpenCart }) {
   const [products, setProducts] = useState([]);
   const [displayTitle, setDisplayTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef(null);
 
-  useEffect(() => {
-    const fetchCategoryAndProducts = async () => {
-      if (!subcategorySlug) return;
+  const navigate = useNavigate();
+  const { addToCart } = useCart();
+
+  // src/components/SubcategoryProducts.jsx
+useEffect(() => {
+  let isMounted = true;
+
+  const fetchCategoryAndProducts = async () => {
+    if (!subcategorySlug) {
+      if (isMounted) setLoading(false);
+      return;
+    }
+
+    try {
       setLoading(true);
+      
+      // Update this endpoint to match your Express router route:
+      // Change /api/category/ to /api/subcategory/ if that's how your route is mounted in Express
+      const res = await axios.get(`${API_BASE_URL}/api/category/${subcategorySlug}`);
 
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/category/${subcategorySlug}`);
+      if (isMounted) {
+        const resData = res.data?.data || res.data;
         
-        if (res.data?.success && res.data?.data) {
-          setDisplayTitle(res.data.data.name);
-          setProducts(res.data.data.products || []);
-        }
-      } catch (err) {
-        console.error(`Failed to fetch category data for ${subcategorySlug}:`, err);
-        setDisplayTitle(subcategorySlug.replace(/-/g, ' '));
-        setProducts([]);
-      } finally {
-        setLoading(false);
+        setDisplayTitle(resData?.name || subcategorySlug.replace(/-/g, ' '));
+        
+        // Extract products whether nested inside resData.products or direct array
+        const productList = Array.isArray(resData?.products) 
+          ? resData.products 
+          : Array.isArray(resData) 
+          ? resData 
+          : [];
+          
+        setProducts(productList);
       }
-    };
+    } catch (err) {
+      console.error(`Failed to fetch subcategory products for ${subcategorySlug}:`, err);
+      if (isMounted) setProducts([]);
+    } finally {
+      if (isMounted) setLoading(false);
+    }
+  };
 
-    fetchCategoryAndProducts();
-  }, [subcategorySlug]);
+  fetchCategoryAndProducts();
+
+  return () => {
+    isMounted = false;
+  };
+}, [subcategorySlug]);
 
   const scroll = (direction) => {
     if (scrollRef.current) {
       const scrollAmount = direction === 'left' ? -350 : 350;
       scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const handleProductCardClick = (product) => {
+    navigate(`/product/${product.id}`, { state: { product } });
+  };
+
+  const handleAddToCart = (e, product) => {
+    e.stopPropagation();
+    addToCart(product, 1);
+    if (onOpenCart) {
+      onOpenCart();
     }
   };
 
@@ -49,7 +88,6 @@ export default function SubcategoryProducts({ subcategorySlug, onProductClick })
     );
   }
 
-  // Returns null if no products exist for this category/subcategory
   if (!products.length) return null;
 
   return (
@@ -91,7 +129,6 @@ export default function SubcategoryProducts({ subcategorySlug, onProductClick })
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {products.map((product) => {
-          // Format image URL handling absolute and relative paths
           const imageUrl = product.image_url
             ? product.image_url.startsWith('http')
               ? product.image_url
@@ -101,7 +138,7 @@ export default function SubcategoryProducts({ subcategorySlug, onProductClick })
           return (
             <div
               key={product.id}
-              onClick={() => onProductClick && onProductClick(product)}
+              onClick={() => handleProductCardClick(product)}
               className="
                 snap-start cursor-pointer group rounded-2xl bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800/80 
                 hover:border-indigo-500/40 shadow-sm dark:shadow-none transition-all duration-200 overflow-hidden flex flex-col justify-between p-3.5
@@ -153,8 +190,12 @@ export default function SubcategoryProducts({ subcategorySlug, onProductClick })
                     )}
                   </div>
 
-                  <button className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                    <ShoppingBag className="w-3.5 h-3.5" />
+                  <button
+                    onClick={(e) => handleAddToCart(e, product)}
+                    className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition-all active:scale-90"
+                    aria-label={`Add ${product.name} to cart`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
