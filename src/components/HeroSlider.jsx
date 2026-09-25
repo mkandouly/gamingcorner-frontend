@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function HeroSlider({ banners = [] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -6,20 +7,22 @@ export default function HeroSlider({ banners = [] }) {
   const timerRef = useRef(null);
 
   // Fallback state if no banners are passed from backend/props
-  const activeBanners = banners.length > 0 ? banners : [
+  const fallbackBanners = [
     {
       id: 1,
-      image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1920&q=80',
+      image_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1920&q=80',
       title: 'Next-Gen Gaming Rigs',
       link: '/category/pcs'
     },
     {
       id: 2,
-      image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1920&q=80',
+      image_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1920&q=80',
       title: 'Ultimate Esports Peripherals',
       link: '/category/peripherals'
     }
   ];
+
+  const activeBanners = banners.length > 0 ? banners : fallbackBanners;
 
   const handleNext = () => {
     setCurrentIndex((prevIndex) => (prevIndex + 1) % activeBanners.length);
@@ -55,13 +58,15 @@ export default function HeroSlider({ banners = [] }) {
   return (
     <div className="container mx-auto px-4 my-6">
       <section 
-        className="relative w-full h-[280px] sm:h-[380px] md:h-[460px] lg:h-[500px] bg-slate-950 rounded-2xl overflow-hidden group select-none shadow-2xl border border-slate-200/20 dark:border-slate-800"
+        className="relative w-full h-[280px] sm:h-[380px] md:h-[460px] lg:h-[500px] bg-slate-100 dark:bg-slate-900 rounded-2xl overflow-hidden group select-none shadow-2xl border border-slate-200 dark:border-slate-800/80 transition-colors duration-200"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
         {/* Banner Slides */}
         {activeBanners.map((banner, index) => {
           const isActive = index === currentIndex;
+          const bannerImg = banner.image_url || banner.image;
+
           return (
             <div
               key={banner.id || index}
@@ -73,7 +78,7 @@ export default function HeroSlider({ banners = [] }) {
             >
               {/* Background Image */}
               <img
-                src={banner.image}
+                src={bannerImg}
                 alt={banner.title || `Hero banner ${index + 1}`}
                 className="w-full h-full object-cover object-center"
               />
@@ -83,21 +88,21 @@ export default function HeroSlider({ banners = [] }) {
 
               {/* Banner Text Overlay */}
               {banner.title && (
-                <div className="absolute bottom-10 sm:bottom-12 left-0 right-0 z-20 px-12 sm:px-16">
+                <div className="absolute bottom-10 sm:bottom-12 left-0 right-0 z-20 px-8 sm:px-16">
                   <div className="max-w-xl">
                     <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">
                       {banner.title}
                     </h2>
                     {banner.link && (
-                      <a
-                        href={banner.link}
-                        className="inline-flex items-center gap-2 mt-3 bg-white hover:bg-blue-50 text-slate-900 font-bold px-4 py-2 rounded-lg text-xs sm:text-sm shadow-xl transition-all hover:gap-3"
+                      <Link
+                        to={banner.link}
+                        className="inline-flex items-center gap-2 mt-3 bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2.5 rounded-lg text-xs sm:text-sm shadow-lg transition-all hover:gap-3"
                       >
                         <span>Shop Now</span>
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                         </svg>
-                      </a>
+                      </Link>
                     )}
                   </div>
                 </div>

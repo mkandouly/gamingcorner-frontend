@@ -1,14 +1,22 @@
 @import "tailwindcss";
 
-body {
-  background-color: white;
-  color: #0f172a; /* slate-900 */
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
-}
+/* 1. Define custom utilities or color variables if needed */
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
 
-:root.dark body {
-  background-color: #020617; /* slate-950 */
-  color: white;
+  body {
+    background-color: #f8fafc; /* slate-50 */
+    color: #0f172a; /* slate-900 */
+    transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+                color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Target both class="dark" on <html> or <body> */
+  .dark body,
+  html.dark body {
+    background-color: #020617; /* slate-950 */
+    color: #f8fafc; /* slate-50 */
+  }
 }

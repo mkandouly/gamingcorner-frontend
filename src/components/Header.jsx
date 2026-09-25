@@ -1,35 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import { navCategories } from '../data/categoriesData';
-import { useCart } from './CartContext'; // Adjust path if your CartContext is elsewhere
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { navCategories as staticNavCategories } from "../data/categoriesData";
+import { useCart } from "./CartContext";
+import axios from "axios";
 
 export default function Header({ onOpenCart, products = [] }) {
+  const navigate = useNavigate();
   const { cart, totalItems } = useCart();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMobileCategory, setActiveMobileCategory] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Live Search States
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef(null);
+
+  // Dynamic backend categories state
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   // Scroll visibility state
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
-  // Calculate live total price from cart items with property and string fallback
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Live Search Debounce Effect
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_BASE}/api/products?search=${encodeURIComponent(query)}`
+        );
+        const data = response.data?.data || response.data || [];
+        setSearchResults(data.slice(0, 5)); // Show top 5 preview results
+        setShowDropdown(true);
+      } catch (err) {
+        console.error("Error fetching live search results:", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  // Handle Search Submission (Pressing Enter or clicking full search)
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const cleanQuery = searchQuery.trim();
+    if (!cleanQuery) return;
+
+    setShowDropdown(false);
+    navigate(`/products?search=${encodeURIComponent(cleanQuery)}`);
+  };
+
+  // Handle clicking a specific product from preview dropdown
+  const handleSelectProduct = (productId) => {
+    setShowDropdown(false);
+    setSearchQuery("");
+    navigate(`/product/${productId}`);
+  };
+
+  // Fetch Categories from Backend API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/category`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (Array.isArray(data) && data.length > 0) {
+          const formattedCategories = data.map((cat) => ({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            href: `/category/${cat.slug}`,
+            isHot: Boolean(cat.is_hot),
+            items: Array.isArray(cat.subcategories)
+              ? cat.subcategories.map((sub) => ({
+                  id: sub.id,
+                  name: sub.name,
+                  slug: sub.slug,
+                  href: `/category/${cat.slug}/${sub.slug}`,
+                }))
+              : [],
+          }));
+
+          setCategories(formattedCategories);
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch backend categories, using fallback:",
+          error,
+        );
+        setCategories(staticNavCategories);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  const navCategories =
+    categories.length > 0 ? categories : staticNavCategories;
+
   const totalPrice = cart.reduce((sum, item) => {
-    const product = products.find((p) => String(p.id) === String(item.id)) || {};
-    
-    // Check matched product object first, then fall back to properties stored directly on the cart item
+    const product =
+      products.find((p) => String(p.id) === String(item.id)) || {};
+
     const rawPrice =
-      product.sale_price ??
-      product.price ??
-      item.sale_price ??
-      item.price ??
-      0;
+      product.sale_price ?? product.price ?? item.sale_price ?? item.price ?? 0;
 
     const itemPrice = Number(rawPrice) || 0;
     return sum + itemPrice * item.quantity;
   }, 0);
 
-  // Hide header on scroll down, reveal on scroll up
+  // Hide header on scroll
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -45,40 +157,40 @@ export default function Header({ onOpenCart, products = [] }) {
       setLastScrollY(currentScrollY);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY, isMobileMenuOpen]);
 
-  // Sync theme safely on mount
+  // Sync theme
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+    const savedTheme = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
       setIsDarkMode(true);
     }
   }, []);
 
-  // Toggle Dark Class on <html> element
   useEffect(() => {
     const root = document.documentElement;
     if (isDarkMode) {
-      root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      root.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
-      root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      root.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
   }, [isDarkMode]);
 
-  // Close mobile drawer automatically when scaling up to desktop
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
         setIsMobileMenuOpen(false);
       }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const toggleMobileCategory = (index) => {
@@ -88,23 +200,37 @@ export default function Header({ onOpenCart, products = [] }) {
   return (
     <header
       className={`w-full bg-white dark:bg-slate-900 border-b-2 border-blue-600 font-sans sticky top-0 left-0 right-0 z-50 shadow-md dark:shadow-xl transition-all duration-300 ease-in-out ${
-        isVisible ? 'translate-y-0' : '-translate-y-full'
+        isVisible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
       {/* Top Utility Bar */}
       <div className="bg-blue-950 text-white text-xs px-4 py-1.5 border-b border-blue-900">
         <div className="container mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-2">
-            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            <svg
+              className="w-3.5 h-3.5 text-blue-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
             </svg>
             <span className="tracking-wide">
               Free Express Shipping on Orders Over $150 | Local Warranty Included
             </span>
           </div>
           <div className="hidden md:flex items-center space-x-6 text-slate-300">
-            <a href="#support" className="hover:text-blue-400 transition-colors">Tech Support</a>
-            <a href="#track" className="hover:text-blue-400 transition-colors">Track Order</a>
+            <a href="#support" className="hover:text-blue-400 transition-colors">
+              Tech Support
+            </a>
+            <a href="#track" className="hover:text-blue-400 transition-colors">
+              Track Order
+            </a>
           </div>
         </div>
       </div>
@@ -119,9 +245,15 @@ export default function Header({ onOpenCart, products = [] }) {
             className="lg:hidden text-slate-700 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none p-2 rounded-lg bg-slate-100 dark:bg-slate-800 transition-colors relative w-10 h-10 flex items-center justify-center"
           >
             <div className="w-5 h-4 flex flex-col justify-between items-center relative">
-              <span className={`w-full h-0.5 bg-current rounded-full transform transition-all duration-300 ease-in-out ${isMobileMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
-              <span className={`w-full h-0.5 bg-current rounded-full transition-all duration-200 ease-in-out ${isMobileMenuOpen ? 'opacity-0 scale-x-0' : 'opacity-100'}`} />
-              <span className={`w-full h-0.5 bg-current rounded-full transform transition-all duration-300 ease-in-out ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+              <span
+                className={`w-full h-0.5 bg-current rounded-full transform transition-all duration-300 ease-in-out ${isMobileMenuOpen ? "rotate-45 translate-y-1.5" : ""}`}
+              />
+              <span
+                className={`w-full h-0.5 bg-current rounded-full transition-all duration-200 ease-in-out ${isMobileMenuOpen ? "opacity-0 scale-x-0" : "opacity-100"}`}
+              />
+              <span
+                className={`w-full h-0.5 bg-current rounded-full transform transition-all duration-300 ease-in-out ${isMobileMenuOpen ? "-rotate-45 -translate-y-2" : ""}`}
+              />
             </div>
           </button>
 
@@ -130,27 +262,91 @@ export default function Header({ onOpenCart, products = [] }) {
               GC
             </div>
             <span className="text-2xl font-black tracking-tight text-slate-900 dark:text-white hidden sm:inline-block">
-              GAMING<span className="text-blue-600 dark:text-blue-400">CORNER</span>
+              GAMING
+              <span className="text-blue-600 dark:text-blue-400">CORNER</span>
             </span>
           </a>
         </div>
 
-        {/* Search Bar */}
-        <div className="hidden md:flex flex-1 max-w-2xl mx-6">
-          <form onSubmit={(e) => e.preventDefault()} className="relative w-full flex">
+        {/* Desktop Live Search Bar */}
+        <div className="hidden md:flex flex-1 max-w-2xl mx-6 relative" ref={searchRef}>
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative w-full flex"
+          >
             <input
               type="text"
               value={searchQuery}
+              onFocus={() => searchQuery.trim().length >= 2 && setShowDropdown(true)}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search RTX 4090, Ryzen CPUs, Gaming Laptops..."
               className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 px-4 py-2.5 rounded-l-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 transition-colors text-sm"
             />
-            <button type="submit" aria-label="Search" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-r-lg font-semibold transition-colors flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <button
+              type="submit"
+              aria-label="Search"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-r-lg font-semibold transition-colors flex items-center justify-center"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
             </button>
           </form>
+
+          {/* Live Search Preview Dropdown */}
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50">
+              {isSearching ? (
+                <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Searching products...
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {searchResults.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectProduct(item.id)}
+                      className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                    >
+                      <img
+                        src={item.image_url || "/placeholder.png"}
+                        alt={item.name}
+                        className="w-12 h-12 object-cover rounded-md bg-slate-100 dark:bg-slate-800 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                          {item.name}
+                        </h4>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-bold font-mono mt-0.5">
+                          ${Number(item.sale_price || item.price).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={handleSearchSubmit}
+                    className="w-full p-2.5 text-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                  >
+                    View all results for "{searchQuery}"
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                  No products found for "{searchQuery}"
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Theme, Wishlist, Cart */}
@@ -161,32 +357,76 @@ export default function Header({ onOpenCart, products = [] }) {
             className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full hover:bg-slate-200 dark:hover:bg-blue-600 dark:hover:text-white transition-colors"
           >
             {isDarkMode ? (
-              <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              <svg
+                className="w-5 h-5 text-amber-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                />
               </svg>
             ) : (
-              <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              <svg
+                className="w-5 h-5 text-slate-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                />
               </svg>
             )}
           </button>
 
-          <a href="#wishlist" className="relative p-2.5 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-blue-600 transition-colors group">
-            <svg className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          <a
+            href="#wishlist"
+            className="relative p-2.5 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-blue-600 transition-colors group"
+          >
+            <svg
+              className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
             </svg>
-            <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">3</span>
+            <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              3
+            </span>
           </a>
 
-          {/* ACTIVE CART BUTTON */}
           <button
             onClick={onOpenCart}
             aria-label="Open Cart"
             className="relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-colors text-white"
           >
             <div className="relative">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
+                />
               </svg>
               {totalItems > 0 && (
                 <span className="absolute -top-2 -right-2 bg-slate-900 text-blue-400 text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-blue-400">
@@ -203,7 +443,10 @@ export default function Header({ onOpenCart, products = [] }) {
 
       {/* Mobile Search Input */}
       <div className="px-4 pb-3 md:hidden">
-        <form onSubmit={(e) => e.preventDefault()} className="relative w-full flex">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="relative w-full flex"
+        >
           <input
             type="text"
             value={searchQuery}
@@ -211,7 +454,12 @@ export default function Header({ onOpenCart, products = [] }) {
             placeholder="Search GPUs, CPUs, RAM..."
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 px-3 py-2 rounded-l-md border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-blue-600 text-xs"
           />
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-r-md text-xs font-semibold">Search</button>
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded-r-md text-xs font-semibold"
+          >
+            Search
+          </button>
         </form>
       </div>
 
@@ -220,33 +468,51 @@ export default function Header({ onOpenCart, products = [] }) {
         <div className="container mx-auto px-4">
           <ul className="flex items-center space-x-8 text-sm font-medium text-slate-700 dark:text-slate-300">
             {navCategories.map((cat, index) => (
-              <li key={index} className="relative group py-3">
+              <li key={cat.id || index} className="relative group py-3">
                 <a
                   href={cat.href}
                   className={`inline-flex items-center space-x-1.5 transition-all ${
-                    cat.isHot ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold' : 'hover:text-blue-600 dark:hover:text-blue-400'
+                    cat.isHot
+                      ? "text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold"
+                      : "hover:text-blue-600 dark:hover:text-blue-400"
                   }`}
                 >
                   <span>{cat.name}</span>
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  {cat.items && cat.items.length > 0 && (
+                    <svg
+                      className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  )}
                   {cat.isHot && (
-                    <span className="bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 text-[10px] px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/30">HOT</span>
+                    <span className="bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 text-[10px] px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/30">
+                      HOT
+                    </span>
                   )}
                 </a>
 
-                <div className="absolute left-0 top-full hidden group-hover:block w-56 bg-white dark:bg-slate-900 border-t-2 border-blue-600 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-lg shadow-2xl z-50 py-2">
-                  {cat.items.map((subItem, subIdx) => (
-                    <a
-                      key={subIdx}
-                      href={subItem.href}
-                      className="block px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                    >
-                      {subItem.name}
-                    </a>
-                  ))}
-                </div>
+                {cat.items && cat.items.length > 0 && (
+                  <div className="absolute left-0 top-full hidden group-hover:block w-56 bg-white dark:bg-slate-900 border-t-2 border-blue-600 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-lg shadow-2xl z-50 py-2">
+                    {cat.items.map((subItem, subIdx) => (
+                      <a
+                        key={subItem.id || subIdx}
+                        href={subItem.href}
+                        className="block px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {subItem.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -254,37 +520,68 @@ export default function Header({ onOpenCart, products = [] }) {
       </nav>
 
       {/* Mobile Menu Drawer */}
-      <div className={`lg:hidden grid transition-all duration-300 ease-in-out border-slate-200 dark:border-slate-800 ${isMobileMenuOpen ? 'grid-rows-[1fr] opacity-100 border-t' : 'grid-rows-[0fr] opacity-0 border-t-0'}`}>
+      <div
+        className={`lg:hidden grid transition-all duration-300 ease-in-out border-slate-200 dark:border-slate-800 ${isMobileMenuOpen ? "grid-rows-[1fr] opacity-100 border-t" : "grid-rows-[0fr] opacity-0 border-t-0"}`}
+      >
         <div className="overflow-hidden bg-white dark:bg-slate-950 px-4 py-2">
           <div className="space-y-1 py-2">
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">Categories</span>
-            
+            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">
+              Categories
+            </span>
+
             {navCategories.map((cat, index) => (
-              <div key={index} className="border-b border-slate-100 dark:border-slate-800/60 last:border-none">
+              <div
+                key={cat.id || index}
+                className="border-b border-slate-100 dark:border-slate-800/60 last:border-none"
+              >
                 <button
                   onClick={() => toggleMobileCategory(index)}
                   className="w-full flex items-center justify-between px-3 py-2.5 text-left text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors text-sm font-medium"
                 >
                   <span className="flex items-center space-x-2">
                     <span>{cat.name}</span>
-                    {cat.isHot && <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-100 dark:bg-blue-950/80 px-1.5 py-0.5 rounded">HOT</span>}
+                    {cat.isHot && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-100 dark:bg-blue-950/80 px-1.5 py-0.5 rounded">
+                        HOT
+                      </span>
+                    )}
                   </span>
-                  <svg className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${activeMobileCategory === index ? 'rotate-180 text-blue-600' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  {cat.items && cat.items.length > 0 && (
+                    <svg
+                      className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${activeMobileCategory === index ? "rotate-180 text-blue-600" : ""}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  )}
                 </button>
 
-                <div className={`grid transition-all duration-200 ease-in-out ${activeMobileCategory === index ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                  <div className="overflow-hidden">
-                    <div className="pl-6 pr-3 py-1 space-y-1 bg-slate-50 dark:bg-slate-900/50 rounded-md my-1">
-                      {cat.items.map((subItem, subIdx) => (
-                        <a key={subIdx} href={subItem.href} className="block py-2 text-xs text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                          {subItem.name}
-                        </a>
-                      ))}
+                {cat.items && cat.items.length > 0 && (
+                  <div
+                    className={`grid transition-all duration-200 ease-in-out ${activeMobileCategory === index ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="pl-6 pr-3 py-1 space-y-1 bg-slate-50 dark:bg-slate-900/50 rounded-md my-1">
+                        {cat.items.map((subItem, subIdx) => (
+                          <a
+                            key={subItem.id || subIdx}
+                            href={subItem.href}
+                            className="block py-2 text-xs text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {subItem.name}
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
