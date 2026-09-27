@@ -49,7 +49,13 @@ export default function HomePage() {
   return (
     <div className="space-y-8 pb-12">
       <HeroSlider />
-      <BrandTicker />
+      <BrandTicker
+        brands={popularBrands.map((b) => ({
+          id: b.id,
+          name: b.name,
+          logoUrl: b.logo_url?.startsWith('http') ? b.logo_url : `${API_BASE_URL}${b.logo_url || ''}`,
+        }))}
+      />
       <LatestProducts />
 
       {/* Dynamic Featured Subcategory Feeds */}

@@ -1,14 +1,15 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function BrandTicker({ brands = [] }) {
   // Sample fallback data
   const defaultBrands = [
-    { id: 1, name: 'GravaStar', logoUrl: '/uploads/gravastar.png', ref: '/brands/gravastar'},
-    { id: 2, name: 'Cooler Master', logoUrl: '/uploads/coolermaster.png', ref: '/brands/coolermaster' },
-    { id: 3, name: 'Keychron', logoUrl: '/uploads/keychron.png', ref: '/brands/keychron' },
-    { id: 4, name: 'Fractal', logoUrl: '/uploads/fractal.png', ref: '/brands/fractal' },
-    { id: 5, name: 'Lian Li', logoUrl: '/uploads/lianli.png', ref: '/brands/lianli' },
-    { id: 6, name: 'Attack Shark', logoUrl: '/uploads/attackshark.png', ref: '/brands/attackshark' },
+    { id: 1, name: 'GravaStar', logoUrl: '/uploads/gravastar.png' },
+    { id: 2, name: 'Cooler Master', logoUrl: '/uploads/coolermaster.png' },
+    { id: 3, name: 'Keychron', logoUrl: '/uploads/keychron.png' },
+    { id: 4, name: 'Fractal', logoUrl: '/uploads/fractal.png' },
+    { id: 5, name: 'Lian Li', logoUrl: '/uploads/lianli.png' },
+    { id: 6, name: 'Attack Shark', logoUrl: '/uploads/attackshark.png' },
   ];
 
   const brandList = brands.length > 0 ? brands : defaultBrands;
@@ -32,7 +33,7 @@ export default function BrandTicker({ brands = [] }) {
       <div className="relative w-full overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)]">
         <div className="flex w-max animate-marquee space-x-6 hover:[animation-play-state:paused]">
           {marqueeList.map((brand, index) => (
-            <a key={`${brand.id}-${index}`} href={brand.ref}>
+            <Link key={`${brand.id}-${index}`} to={`/brand/${brand.id ?? encodeURIComponent(brand.name)}`}>
               <div
                 className="flex items-center justify-center w-40 sm:w-48 h-24 sm:h-28 px-6 bg-white dark:bg-[#0f172a]/80 border border-slate-200 dark:border-slate-800/80 hover:border-indigo-500/50 rounded-2xl shadow-sm shrink-0 transition-all duration-300 hover:scale-105 backdrop-blur-sm"
               >
@@ -43,7 +44,7 @@ export default function BrandTicker({ brands = [] }) {
                   loading="lazy"
                 />
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
