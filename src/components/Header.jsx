@@ -31,7 +31,8 @@ export default function Header({ onOpenCart, products = [] }) {
   // sensible default if the setting hasn't been set yet or the fetch fails.
   const DEFAULT_ANNOUNCEMENT =
     "Free Express Shipping on Orders Over $150 | Local Warranty Included";
-  const [announcementText, setAnnouncementText] = useState(DEFAULT_ANNOUNCEMENT);
+  const [announcementText, setAnnouncementText] =
+    useState(DEFAULT_ANNOUNCEMENT);
 
   // Scroll visibility state
   const [isVisible, setIsVisible] = useState(true);
@@ -61,7 +62,7 @@ export default function Header({ onOpenCart, products = [] }) {
       setIsSearching(true);
       try {
         const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE}/api/products?search=${encodeURIComponent(query)}`
+          `${import.meta.env.VITE_API_BASE}/api/products?search=${encodeURIComponent(query)}`,
         );
         const data = response.data?.data || response.data || [];
         setSearchResults(data.slice(0, 5)); // Show top 5 preview results
@@ -98,7 +99,9 @@ export default function Header({ onOpenCart, products = [] }) {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/category`);
+        const response = await fetch(
+          `${import.meta.env.VITE_API_BASE}/api/category`,
+        );
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -143,7 +146,7 @@ export default function Header({ onOpenCart, products = [] }) {
     const fetchAnnouncement = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_BASE}/api/settings/announcement_bar`
+          `${import.meta.env.VITE_API_BASE}/api/settings/announcement_bar`,
         );
         if (!response.ok) return;
 
@@ -153,7 +156,10 @@ export default function Header({ onOpenCart, products = [] }) {
           setAnnouncementText(value);
         }
       } catch (error) {
-        console.error("Failed to fetch announcement bar text, using default:", error);
+        console.error(
+          "Failed to fetch announcement bar text, using default:",
+          error,
+        );
       }
     };
 
@@ -284,7 +290,10 @@ export default function Header({ onOpenCart, products = [] }) {
           </div>
 
           <div className="hidden md:flex items-center space-x-6 text-slate-300 shrink-0">
-            <Link to="/track-order" className="hover:text-blue-400 transition-colors">
+            <Link
+              to="/track-order"
+              className="hover:text-blue-400 transition-colors"
+            >
               Track Order
             </Link>
           </div>
@@ -320,22 +329,32 @@ export default function Header({ onOpenCart, products = [] }) {
               className="w-10 h-10 rounded-lg object-cover shadow-lg shadow-blue-600/20 group-hover:opacity-90 transition-opacity"
             />
             <div className="hidden md:block group-hover:opacity-80 transition-opacity">
-              <img src={logoWordmarkNavy} alt="Gaming Corner" className="h-9 w-auto dark:hidden" />
-              <img src={logoWordmarkWhite} alt="Gaming Corner" className="h-9 w-auto hidden dark:block" />
+              <img
+                src={logoWordmarkNavy}
+                alt="Gaming Corner"
+                className="h-9 w-auto dark:hidden"
+              />
+              <img
+                src={logoWordmarkWhite}
+                alt="Gaming Corner"
+                className="h-9 w-auto hidden dark:block"
+              />
             </div>
           </Link>
         </div>
 
         {/* Desktop Live Search Bar */}
-        <div className="hidden md:flex flex-1 max-w-2xl mx-6 relative" ref={searchRef}>
-          <form
-            onSubmit={handleSearchSubmit}
-            className="relative w-full flex"
-          >
+        <div
+          className="hidden md:flex flex-1 max-w-2xl mx-6 relative"
+          ref={searchRef}
+        >
+          <form onSubmit={handleSearchSubmit} className="relative w-full flex">
             <input
               type="text"
               value={searchQuery}
-              onFocus={() => searchQuery.trim().length >= 2 && setShowDropdown(true)}
+              onFocus={() =>
+                searchQuery.trim().length >= 2 && setShowDropdown(true)
+              }
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search RTX 4090, Ryzen CPUs, Gaming Laptops..."
               className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 px-4 py-2.5 rounded-l-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 transition-colors text-sm"
@@ -377,7 +396,13 @@ export default function Header({ onOpenCart, products = [] }) {
                       className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                     >
                       <img
-                        src={item.image_url || "/placeholder.png"}
+                        src={
+                          item.image_url
+                            ? item.image_url.startsWith("http")
+                              ? item.image_url
+                              : `${import.meta.env.VITE_API_BASE}${item.image_url}`
+                            : "/placeholder.png"
+                        }
                         alt={item.name}
                         className="w-12 h-12 object-cover rounded-md bg-slate-100 dark:bg-slate-800 flex-shrink-0"
                       />
@@ -503,10 +528,7 @@ export default function Header({ onOpenCart, products = [] }) {
 
       {/* Mobile Search Input */}
       <div className="px-4 pb-3 md:hidden">
-        <form
-          onSubmit={handleSearchSubmit}
-          className="relative w-full flex"
-        >
+        <form onSubmit={handleSearchSubmit} className="relative w-full flex">
           <input
             type="text"
             value={searchQuery}
