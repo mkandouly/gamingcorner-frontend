@@ -74,6 +74,7 @@ useEffect(() => {
 
   const handleAddToCart = (e, product) => {
     e.stopPropagation();
+    if (product.out_of_stock) return;
     addToCart(product, 1);
     if (onOpenCart) {
       onOpenCart();
@@ -151,17 +152,25 @@ useEffect(() => {
                   <img
                     src={imageUrl}
                     alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+                      product.out_of_stock ? 'opacity-50 grayscale' : ''
+                    }`}
                     loading="lazy"
                   />
                 ) : (
                   <div className="text-[10px] text-slate-400 dark:text-slate-600 font-mono">No Image</div>
                 )}
 
-                {product.sale_price && (
-                  <span className="absolute top-2 left-2 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
-                    Sale
+                {product.out_of_stock ? (
+                  <span className="absolute top-2 left-2 bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                    Out of Stock
                   </span>
+                ) : (
+                  product.sale_price && (
+                    <span className="absolute top-2 left-2 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                      Sale
+                    </span>
+                  )
                 )}
               </div>
 
@@ -192,8 +201,9 @@ useEffect(() => {
 
                   <button
                     onClick={(e) => handleAddToCart(e, product)}
-                    className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition-all active:scale-90"
-                    aria-label={`Add ${product.name} to cart`}
+                    disabled={product.out_of_stock}
+                    className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-50 dark:disabled:hover:bg-indigo-600/10"
+                    aria-label={product.out_of_stock ? 'Out of stock' : `Add ${product.name} to cart`}
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>

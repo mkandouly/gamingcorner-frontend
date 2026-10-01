@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Plus, Minus, ArrowLeft, Check, Loader2, Image as ImageIcon, Cpu } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, ArrowLeft, Check, Loader2, Image as ImageIcon, Cpu, Heart } from 'lucide-react';
 import axios from 'axios';
 import { useCart } from '../components/CartContext';
+import { useWishlist } from '../components/WishlistContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
@@ -16,6 +17,7 @@ export default function ProductDetailsPage() {
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const { addToCart } = useCart();
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -64,8 +66,19 @@ export default function ProductDetailsPage() {
   }
 
   // --- SAFE NUMERIC PRICE PARSING ---
-  const rawPrice = product.price ?? product.sale_price ?? 0;
-  const unitPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(rawPrice) || 0;
+  // price and sale_price are two separate fields, not alternatives — a
+  // product can have both, with sale_price being the discounted price to
+  // actually charge/display when present.
+  const toNumberOrNull = (val) => {
+    if (val === null || val === undefined || val === '') return null;
+    const n = typeof val === 'number' ? val : parseFloat(val);
+    return Number.isNaN(n) ? null : n;
+  };
+
+  const basePrice = toNumberOrNull(product.price) ?? 0;
+  const salePrice = toNumberOrNull(product.sale_price);
+  const isOnSale = salePrice !== null && salePrice < basePrice;
+  const unitPrice = isOnSale ? salePrice : basePrice;
 
   // --- IMAGE URL RESOLVER & PARSER ---
   const formatImageUrl = (url) => {
@@ -75,37 +88,42 @@ export default function ProductDetailsPage() {
   };
 
   const getRawImages = () => {
+    let gallery = [];
+
     // 1. If images is already an array
     if (Array.isArray(product?.images) && product.images.length > 0) {
-      return product.images;
+      gallery = product.images;
     }
     // 2. If image_urls is an array
-    if (Array.isArray(product?.image_urls) && product.image_urls.length > 0) {
-      return product.image_urls;
+    else if (Array.isArray(product?.image_urls) && product.image_urls.length > 0) {
+      gallery = product.image_urls;
     }
     // 3. If images is a stringified JSON array or Postgres array string
-    if (typeof product?.images === 'string' && product.images.trim()) {
+    else if (typeof product?.images === 'string' && product.images.trim()) {
       try {
         const parsed = JSON.parse(product.images);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) gallery = parsed;
       } catch {
         const cleanStr = product.images.replace(/^\{|\}$/g, '');
-        if (cleanStr) return cleanStr.split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
+        if (cleanStr) gallery = cleanStr.split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
       }
-      return [product.images];
+      if (gallery.length === 0 && product.images) gallery = [product.images];
     }
-    // 4. Fallback to image_url or primary_image single string
-    if (product?.image_url) return [product.image_url];
-    if (product?.primary_image) return [product.primary_image];
 
-    return [];
+    // The main image (image_url / primary_image) is a separate field from
+    // the gallery, not an alternative to it — always lead with it, then the
+    // gallery images, de-duplicated in case the same URL appears in both.
+    const mainImage = product?.image_url || product?.primary_image || null;
+    const combined = mainImage ? [mainImage, ...gallery] : gallery;
+
+    return Array.from(new Set(combined.filter(Boolean)));
   };
 
   const imagesList = getRawImages().map(formatImageUrl).filter(Boolean);
   const mainImageUrl = imagesList[selectedImageIndex] || imagesList[0] || null;
 
   const handleAddToCart = () => {
-    if (addToCart) {
+    if (addToCart && !product.out_of_stock) {
       addToCart({ ...product, price: unitPrice }, quantity);
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -163,14 +181,44 @@ export default function ProductDetailsPage() {
         {/* Right: Purchase Info */}
         <div className="flex flex-col justify-between py-2">
           <div>
-            <span className="text-xs font-bold tracking-wider uppercase text-indigo-600 dark:text-indigo-400">
-              {product.category_name || product.category || 'Gaming Gear'}
-            </span>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-xs font-bold tracking-wider uppercase text-indigo-600 dark:text-indigo-400">
+                {product.category_name || product.category || 'Gaming Gear'}
+              </span>
+              <button
+                onClick={() => toggleWishlist(product)}
+                aria-label={isWishlisted(product.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+                className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0"
+              >
+                <Heart
+                  className={`w-4 h-4 transition-colors ${
+                    isWishlisted(product.id) ? 'text-red-500 fill-red-500' : 'text-slate-500 dark:text-slate-300'
+                  }`}
+                />
+              </button>
+            </div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mt-1">
               {product.name || product.title || `Product #${product.id}`}
             </h1>
-            <div className="text-3xl font-extrabold my-4 font-mono text-slate-900 dark:text-white">
-              ${unitPrice.toFixed(2)}
+            <div className="flex items-center gap-3 my-4 flex-wrap">
+              <span className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white">
+                ${unitPrice.toFixed(2)}
+              </span>
+              {isOnSale && (
+                <>
+                  <span className="text-lg font-mono text-slate-400 dark:text-slate-500 line-through">
+                    ${basePrice.toFixed(2)}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-1 rounded-full">
+                    Save ${(basePrice - unitPrice).toFixed(2)}
+                  </span>
+                </>
+              )}
+              {product.out_of_stock && (
+                <span className="text-[11px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-2 py-1 rounded-full">
+                  Out of Stock
+                </span>
+              )}
             </div>
           </div>
 
@@ -190,14 +238,17 @@ export default function ProductDetailsPage() {
 
             <button
               onClick={handleAddToCart}
-              className={`w-full py-3.5 px-6 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all shadow-lg ${
+              disabled={product.out_of_stock}
+              className={`w-full py-3.5 px-6 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${
                 added
                   ? 'bg-emerald-600 text-white shadow-emerald-600/20'
                   : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/25'
               }`}
             >
               {added ? <Check className="w-5 h-5" /> : <ShoppingBag className="w-5 h-5" />}
-              {added
+              {product.out_of_stock
+                ? 'Out of Stock'
+                : added
                 ? 'Added to Cart!'
                 : `Add to Cart — $${(unitPrice * quantity).toFixed(2)}`}
             </button>

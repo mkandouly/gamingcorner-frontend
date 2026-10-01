@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import CartDrawer from '../components/CartDrawer';
 
 export default function MainLayout({ products = [] }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleCheckout = () => {
+    setIsCartOpen(false);
+    navigate('/checkout');
+  };
 
   return (
     <div className="min-h-screen w-full bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
@@ -18,7 +24,12 @@ export default function MainLayout({ products = [] }) {
 
       <Footer />
 
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        products={products}
+        onCheckout={handleCheckout}
+      />
     </div>
   );
 }

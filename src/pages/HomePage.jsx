@@ -14,15 +14,17 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 export default function HomePage() {
   const [featuredCategories, setFeaturedCategories] = useState([]);
   const [popularBrands, setPopularBrands] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchDynamicFeeds = async () => {
       try {
         setLoading(true);
-        const [categoriesRes, brandsRes] = await Promise.all([
+        const [categoriesRes, brandsRes, bannersRes] = await Promise.all([
           axios.get(`${API_BASE_URL}/api/subcategory/featured`),
           axios.get(`${API_BASE_URL}/api/brands/featured`),
+          axios.get(`${API_BASE_URL}/api/banners`),
         ]);
 
         // Safely extract subcategories array
@@ -36,6 +38,12 @@ export default function HomePage() {
         if (Array.isArray(brandData)) {
           setPopularBrands(brandData);
         }
+
+        // Safely extract banners array
+        const bannerData = bannersRes.data?.data || bannersRes.data;
+        if (Array.isArray(bannerData)) {
+          setBanners(bannerData);
+        }
       } catch (err) {
         console.error('Failed to load dynamic home page sections:', err);
       } finally {
@@ -48,7 +56,14 @@ export default function HomePage() {
 
   return (
     <div className="space-y-8 pb-12">
-      <HeroSlider />
+      <HeroSlider
+        banners={banners.map((b) => ({
+          id: b.id,
+          title: b.title,
+          link: b.link,
+          image_url: b.image_url?.startsWith('http') ? b.image_url : `${API_BASE_URL}${b.image_url || ''}`,
+        }))}
+      />
       <BrandTicker
         brands={popularBrands.map((b) => ({
           id: b.id,
