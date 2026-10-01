@@ -1,15 +1,15 @@
 // src/pages/HomePage.jsx
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 
-import HeroSlider from '../components/HeroSlider';
-import ShopByBrand from '../components/ShopByBrand';
-import BrandTicker from '../components/BrandTicker';
-import LatestProducts from '../components/LatestProducts';
-import SubcategoryProducts from '../components/SubcategoryProducts';
-import BrandProducts from '../components/BrandProducts';
+import HeroSlider from "../components/HeroSlider";
+import ShopByBrand from "../components/ShopByBrand";
+import BrandTicker from "../components/BrandTicker";
+import LatestProducts from "../components/LatestProducts";
+import SubcategoryProducts from "../components/SubcategoryProducts";
+import BrandProducts from "../components/BrandProducts";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE || "http://localhost:3000";
 
 export default function HomePage() {
   const [featuredCategories, setFeaturedCategories] = useState([]);
@@ -45,7 +45,7 @@ export default function HomePage() {
           setBanners(bannerData);
         }
       } catch (err) {
-        console.error('Failed to load dynamic home page sections:', err);
+        console.error("Failed to load dynamic home page sections:", err);
       } finally {
         setLoading(false);
       }
@@ -57,18 +57,24 @@ export default function HomePage() {
   return (
     <div className="space-y-8 pb-12">
       <HeroSlider
+        loading={loading}
         banners={banners.map((b) => ({
           id: b.id,
           title: b.title,
           link: b.link,
-          image_url: b.image_url?.startsWith('http') ? b.image_url : `${API_BASE_URL}${b.image_url || ''}`,
+          image_url: b.image_url?.startsWith("http")
+            ? b.image_url
+            : `${API_BASE_URL}${b.image_url || ""}`,
         }))}
       />
       <BrandTicker
+        loading={loading}
         brands={popularBrands.map((b) => ({
           id: b.id,
           name: b.name,
-          logoUrl: b.logo_url?.startsWith('http') ? b.logo_url : `${API_BASE_URL}${b.logo_url || ''}`,
+          logoUrl: b.logo_url?.startsWith("http")
+            ? b.logo_url
+            : `${API_BASE_URL}${b.logo_url || ""}`,
         }))}
       />
       <LatestProducts />
