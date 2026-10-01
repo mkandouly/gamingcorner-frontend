@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
-export default function ShopByBrand({ onBrandSelect }) {
+// Use the brand's own id if the popular-brands row stores it separately,
+// otherwise fall back to the row id, then the name.
+const brandPath = (brand) =>
+  `/brand/${brand.brand_id ?? brand.id ?? encodeURIComponent(brand.name)}`;
+
+export default function ShopByBrand() {
   const [popularBrands, setPopularBrands] = useState([]);
-  const [activeBrandId, setActiveBrandId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,7 +21,6 @@ export default function ShopByBrand({ onBrandSelect }) {
 
         if (Array.isArray(data) && data.length > 0) {
           setPopularBrands(data);
-          setActiveBrandId(data[0].id);
         }
       } catch (err) {
         console.error('Failed to fetch popular brands:', err);
@@ -27,11 +31,6 @@ export default function ShopByBrand({ onBrandSelect }) {
 
     fetchPopularBrands();
   }, []);
-
-  const handleBrandClick = (brand) => {
-    setActiveBrandId(brand.id);
-    if (onBrandSelect) onBrandSelect(brand);
-  };
 
   if (loading) {
     return (
@@ -61,29 +60,20 @@ export default function ShopByBrand({ onBrandSelect }) {
         </p>
       </div>
 
-      {/* Popular Brand Names List */}
+      {/* Popular Brand Links */}
       <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 max-w-5xl mx-auto">
-        {popularBrands.map((brand) => {
-          const isActive = activeBrandId === brand.id;
+        {popularBrands.map((brand) => (
+          <Link
+            key={brand.id}
+            to={brandPath(brand)}
+            className="group relative text-xs md:text-sm font-extrabold uppercase tracking-widest text-neutral-400 hover:text-white focus-visible:text-white transition-colors duration-200 py-1 px-0.5 outline-none"
+          >
+            {brand.name}
 
-          return (
-            <button
-              key={brand.id}
-              onClick={() => handleBrandClick(brand)}
-              className={`
-                relative text-xs md:text-sm font-extrabold uppercase tracking-widest transition-colors duration-200 py-1 px-0.5
-                ${isActive ? 'text-white' : 'text-neutral-400 hover:text-neutral-200'}
-              `}
-            >
-              {brand.name}
-              
-              {/* Active Blue Underline Indicator */}
-              {isActive && (
-                <span className="absolute bottom-0 left-0 w-full h-[2.5px] bg-indigo-600 rounded-full transition-all duration-300" />
-              )}
-            </button>
-          );
-        })}
+            {/* Underline grows in on hover / keyboard focus */}
+            <span className="absolute bottom-0 left-0 w-full h-[2.5px] bg-indigo-600 rounded-full origin-left scale-x-0 group-hover:scale-x-100 group-focus-visible:scale-x-100 transition-transform duration-300" />
+          </Link>
+        ))}
       </div>
     </section>
   );
