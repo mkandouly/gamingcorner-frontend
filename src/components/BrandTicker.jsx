@@ -1,24 +1,36 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React from 'react';
+import { Link } from 'react-router-dom';
 
-export default function BrandTicker({ brands = [] }) {
-  // Sample fallback data
-  const defaultBrands = [
-    { id: 1, name: "GravaStar", logoUrl: "/uploads/gravastar.png" },
-    { id: 2, name: "Cooler Master", logoUrl: "/uploads/coolermaster.png" },
-    { id: 3, name: "Keychron", logoUrl: "/uploads/keychron.png" },
-    { id: 4, name: "Fractal", logoUrl: "/uploads/fractal.png" },
-    { id: 5, name: "Lian Li", logoUrl: "/uploads/lianli.png" },
-    { id: 6, name: "Attack Shark", logoUrl: "/uploads/attackshark.png" },
-  ];
+export default function BrandTicker({ brands = [], loading = false }) {
+  // Skeleton while brands are loading
+  if (loading) {
+    return (
+      <section className="py-12 bg-slate-50 dark:bg-[#080c14] transition-colors duration-200 overflow-hidden">
+        <div className="text-center mb-8 px-4">
+          <div className="h-8 w-64 max-w-full mx-auto rounded-lg bg-slate-200 dark:bg-slate-800 animate-pulse" />
+          <div className="h-4 w-80 max-w-full mx-auto mt-3 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+        </div>
+        <div className="flex gap-6 px-6 overflow-hidden">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              className="w-40 sm:w-48 h-24 sm:h-28 shrink-0 rounded-2xl bg-slate-200 dark:bg-slate-800/60 animate-pulse"
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
-  const brandList = brands.length > 0 ? brands : defaultBrands;
+  // Nothing to show (no brands or the request failed)
+  if (!brands.length) return null;
 
-  // Duplicate list to guarantee seamless loop transition
-  // Repeat the brands so each half is wider than any screen
+  // Repeat the brands so each half of the marquee is wider than any screen
   const MIN_PER_HALF = 12;
-  const repeats = Math.max(1, Math.ceil(MIN_PER_HALF / brandList.length));
-  const half = Array.from({ length: repeats }, () => brandList).flat();
+  const repeats = Math.max(1, Math.ceil(MIN_PER_HALF / brands.length));
+  const half = Array.from({ length: repeats }, () => brands).flat();
+
+  // Two identical halves: sliding by -50% lands exactly on the start of the second half
   const marqueeList = [...half, ...half];
 
   return (
@@ -45,7 +57,9 @@ export default function BrandTicker({ brands = [] }) {
               to={`/brand/${brand.id ?? encodeURIComponent(brand.name)}`}
               className="shrink-0 pr-6"
             >
-              <div className="flex items-center justify-center w-40 sm:w-48 h-24 sm:h-28 px-6 bg-white dark:bg-[#0f172a]/80 border border-slate-200 dark:border-slate-800/80 hover:border-indigo-500/50 rounded-2xl shadow-sm shrink-0 transition-all duration-300 hover:scale-105 backdrop-blur-sm">
+              <div
+                className="flex items-center justify-center w-40 sm:w-48 h-24 sm:h-28 px-6 bg-white dark:bg-[#0f172a]/80 border border-slate-200 dark:border-slate-800/80 hover:border-indigo-500/50 rounded-2xl shadow-sm shrink-0 transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+              >
                 <img
                   src={brand.logoUrl}
                   alt={brand.name}

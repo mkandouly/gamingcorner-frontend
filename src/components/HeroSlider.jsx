@@ -1,28 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
-export default function HeroSlider({ banners = [] }) {
+export default function HeroSlider({ banners = [], loading = false }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef(null);
 
-  // Fallback state if no banners are passed from backend/props
-  const fallbackBanners = [
-    {
-      id: 1,
-      image_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1920&q=80',
-      title: 'Next-Gen Gaming Rigs',
-      link: '/category/pcs'
-    },
-    {
-      id: 2,
-      image_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1920&q=80',
-      title: 'Ultimate Esports Peripherals',
-      link: '/category/peripherals'
-    }
-  ];
+  const activeBanners = banners;
 
-  const activeBanners = banners.length > 0 ? banners : fallbackBanners;
+  // If the banner list changes (e.g. after loading), keep the index in range
+  useEffect(() => {
+    if (currentIndex >= activeBanners.length) setCurrentIndex(0);
+  }, [activeBanners.length, currentIndex]);
 
   const handleNext = () => {
     setCurrentIndex((prevIndex) => (prevIndex + 1) % activeBanners.length);
@@ -52,6 +41,15 @@ export default function HeroSlider({ banners = [] }) {
     // Resume auto-rotation after 6 seconds of inactivity
     setTimeout(() => setIsPaused(false), 6000);
   };
+
+  // Skeleton while banners are loading (same size as the real slider, so nothing jumps)
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 my-6">
+        <div className="w-full h-[280px] sm:h-[380px] md:h-[460px] lg:h-[500px] rounded-2xl bg-slate-200 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800/80 animate-pulse" />
+      </div>
+    );
+  }
 
   if (!activeBanners.length) return null;
 
