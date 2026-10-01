@@ -15,7 +15,11 @@ export default function Header({ onOpenCart, products = [] }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMobileCategory, setActiveMobileCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // index.html sets the "dark" class before React loads, so start from that
+  // instead of false (otherwise the page flashes light mode on load)
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
 
   // Live Search States
   const [searchResults, setSearchResults] = useState([]);
@@ -31,8 +35,10 @@ export default function Header({ onOpenCart, products = [] }) {
   // sensible default if the setting hasn't been set yet or the fetch fails.
   const DEFAULT_ANNOUNCEMENT =
     "Free Express Shipping on Orders Over $150 | Local Warranty Included";
-  const [announcementText, setAnnouncementText] =
-    useState(DEFAULT_ANNOUNCEMENT);
+  const [announcementText, setAnnouncementText] = useState(DEFAULT_ANNOUNCEMENT);
+  // Keep the text invisible until we know which text to show, so the default
+  // doesn't flash before the admin-set text replaces it
+  const [announcementReady, setAnnouncementReady] = useState(false);
 
   // Scroll visibility state
   const [isVisible, setIsVisible] = useState(true);
@@ -62,7 +68,7 @@ export default function Header({ onOpenCart, products = [] }) {
       setIsSearching(true);
       try {
         const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE}/api/products?search=${encodeURIComponent(query)}`,
+          `${import.meta.env.VITE_API_BASE}/api/products?search=${encodeURIComponent(query)}`
         );
         const data = response.data?.data || response.data || [];
         setSearchResults(data.slice(0, 5)); // Show top 5 preview results
@@ -99,9 +105,7 @@ export default function Header({ onOpenCart, products = [] }) {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE}/api/category`,
-        );
+        const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/category`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -146,7 +150,7 @@ export default function Header({ onOpenCart, products = [] }) {
     const fetchAnnouncement = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_BASE}/api/settings/announcement_bar`,
+          `${import.meta.env.VITE_API_BASE}/api/settings/announcement_bar`
         );
         if (!response.ok) return;
 
@@ -156,18 +160,17 @@ export default function Header({ onOpenCart, products = [] }) {
           setAnnouncementText(value);
         }
       } catch (error) {
-        console.error(
-          "Failed to fetch announcement bar text, using default:",
-          error,
-        );
+        console.error("Failed to fetch announcement bar text, using default:", error);
+      } finally {
+        setAnnouncementReady(true);
       }
     };
 
     fetchAnnouncement();
   }, []);
 
-  const navCategories =
-    categories.length > 0 ? categories : staticNavCategories;
+  // Static categories are only used if the request fails (set in the catch above)
+  const navCategories = categories;
 
   const totalPrice = cart.reduce((sum, item) => {
     const product =
@@ -199,17 +202,6 @@ export default function Header({ onOpenCart, products = [] }) {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [lastScrollY, isMobileMenuOpen]);
-
-  // Sync theme
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-      setIsDarkMode(true);
-    }
-  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -260,13 +252,23 @@ export default function Header({ onOpenCart, products = [] }) {
                 d="M13 10V3L4 14h7v7l9-11h-7z"
               />
             </svg>
-            <span className="tracking-wide truncate">{announcementText}</span>
+            <span
+              className={`tracking-wide truncate transition-opacity duration-300 ${
+                announcementReady ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {announcementText}
+            </span>
           </div>
 
           {/* Mobile: the bar is too narrow for arbitrary admin-set text to
               sit statically, so scroll it continuously instead of truncating
               or wrapping it awkwardly. */}
-          <div className="sm:hidden flex-1 min-w-0 overflow-hidden">
+          <div
+            className={`sm:hidden flex-1 min-w-0 overflow-hidden transition-opacity duration-300 ${
+              announcementReady ? "opacity-100" : "opacity-0"
+            }`}
+          >
             <div className="flex w-max animate-marquee items-center gap-10 whitespace-nowrap">
               {[0, 1].map((i) => (
                 <span key={i} className="flex items-center gap-2 tracking-wide">
@@ -290,10 +292,7 @@ export default function Header({ onOpenCart, products = [] }) {
           </div>
 
           <div className="hidden md:flex items-center space-x-6 text-slate-300 shrink-0">
-            <Link
-              to="/track-order"
-              className="hover:text-blue-400 transition-colors"
-            >
+            <Link to="/track-order" className="hover:text-blue-400 transition-colors">
               Track Order
             </Link>
           </div>
@@ -329,32 +328,22 @@ export default function Header({ onOpenCart, products = [] }) {
               className="w-10 h-10 rounded-lg object-cover shadow-lg shadow-blue-600/20 group-hover:opacity-90 transition-opacity"
             />
             <div className="hidden md:block group-hover:opacity-80 transition-opacity">
-              <img
-                src={logoWordmarkNavy}
-                alt="Gaming Corner"
-                className="h-9 w-auto dark:hidden"
-              />
-              <img
-                src={logoWordmarkWhite}
-                alt="Gaming Corner"
-                className="h-9 w-auto hidden dark:block"
-              />
+              <img src={logoWordmarkNavy} alt="Gaming Corner" className="h-9 w-auto dark:hidden" />
+              <img src={logoWordmarkWhite} alt="Gaming Corner" className="h-9 w-auto hidden dark:block" />
             </div>
           </Link>
         </div>
 
         {/* Desktop Live Search Bar */}
-        <div
-          className="hidden md:flex flex-1 max-w-2xl mx-6 relative"
-          ref={searchRef}
-        >
-          <form onSubmit={handleSearchSubmit} className="relative w-full flex">
+        <div className="hidden md:flex flex-1 max-w-2xl mx-6 relative" ref={searchRef}>
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative w-full flex"
+          >
             <input
               type="text"
               value={searchQuery}
-              onFocus={() =>
-                searchQuery.trim().length >= 2 && setShowDropdown(true)
-              }
+              onFocus={() => searchQuery.trim().length >= 2 && setShowDropdown(true)}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search RTX 4090, Ryzen CPUs, Gaming Laptops..."
               className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 px-4 py-2.5 rounded-l-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 transition-colors text-sm"
@@ -528,7 +517,10 @@ export default function Header({ onOpenCart, products = [] }) {
 
       {/* Mobile Search Input */}
       <div className="px-4 pb-3 md:hidden">
-        <form onSubmit={handleSearchSubmit} className="relative w-full flex">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="relative w-full flex"
+        >
           <input
             type="text"
             value={searchQuery}
@@ -549,6 +541,12 @@ export default function Header({ onOpenCart, products = [] }) {
       <nav className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/80 hidden lg:block transition-colors duration-200">
         <div className="container mx-auto px-4">
           <ul className="flex items-center space-x-8 text-sm font-medium text-slate-700 dark:text-slate-300">
+            {loadingCategories &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <li key={`skeleton-${i}`} className="py-3">
+                  <div className="h-5 w-24 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                </li>
+              ))}
             {navCategories.map((cat, index) => (
               <li key={cat.id || index} className="relative group py-3">
                 <Link
@@ -620,6 +618,13 @@ export default function Header({ onOpenCart, products = [] }) {
             <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">
               Categories
             </span>
+
+            {loadingCategories &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={`skeleton-${i}`} className="px-2 py-3">
+                  <div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                </div>
+              ))}
 
             {navCategories.map((cat, index) => (
               <div
