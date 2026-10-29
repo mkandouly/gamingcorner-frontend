@@ -1,0 +1,690 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { navCategories as staticNavCategories } from "../data/categoriesData";
+import { useCart } from "./CartContext";
+import { useWishlist } from "./WishlistContext";
+import logoIcon from "../assets/logo-icon.png";
+import logoWordmarkWhite from "../assets/logo-wordmark-white.png";
+import logoWordmarkNavy from "../assets/logo-wordmark-navy.png";
+import axios from "axios";
+
+export default function Header({ onOpenCart, products = [] }) {
+  const navigate = useNavigate();
+  const { cart, totalItems } = useCart();
+  const { totalWishlisted } = useWishlist();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeMobileCategory, setActiveMobileCategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  // index.html sets the "dark" class before React loads, so start from that
+  // instead of false (otherwise the page flashes light mode on load)
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
+
+  // Live Search States
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef(null);
+
+  // Dynamic backend categories state
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  // Announcement bar text, editable from the admin panel. Falls back to a
+  // sensible default if the setting hasn't been set yet or the fetch fails.
+  const DEFAULT_ANNOUNCEMENT =
+    "Free Express Shipping on Orders Over $150 | Local Warranty Included";
+  const [announcementText, setAnnouncementText] = useState(DEFAULT_ANNOUNCEMENT);
+  // Keep the text invisible until we know which text to show, so the default
+  // doesn't flash before the admin-set text replaces it
+  const [announcementReady, setAnnouncementReady] = useState(false);
+
+  // Scroll visibility state
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Live Search Debounce Effect
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_BASE}/api/products?search=${encodeURIComponent(query)}`
+        );
+        const data = response.data?.data || response.data || [];
+        setSearchResults(data.slice(0, 5)); // Show top 5 preview results
+        setShowDropdown(true);
+      } catch (err) {
+        console.error("Error fetching live search results:", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  // Handle Search Submission (Pressing Enter or clicking full search)
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const cleanQuery = searchQuery.trim();
+    if (!cleanQuery) return;
+
+    setShowDropdown(false);
+    navigate(`/products?search=${encodeURIComponent(cleanQuery)}`);
+  };
+
+  // Handle clicking a specific product from preview dropdown
+  const handleSelectProduct = (productId) => {
+    setShowDropdown(false);
+    setSearchQuery("");
+    navigate(`/product/${productId}`);
+  };
+
+  // Fetch Categories from Backend API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/category`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (Array.isArray(data) && data.length > 0) {
+          const formattedCategories = data.map((cat) => ({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            href: `/category/${cat.slug}`,
+            isHot: Boolean(cat.is_hot),
+            items: Array.isArray(cat.subcategories)
+              ? cat.subcategories.map((sub) => ({
+                  id: sub.id,
+                  name: sub.name,
+                  slug: sub.slug,
+                  href: `/category/${cat.slug}/${sub.slug}`,
+                }))
+              : [],
+          }));
+
+          setCategories(formattedCategories);
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch backend categories, using fallback:",
+          error,
+        );
+        setCategories(staticNavCategories);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Fetch the admin-set announcement bar text; keep the default if unset/fails.
+  useEffect(() => {
+    const fetchAnnouncement = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_BASE}/api/settings/announcement_bar`
+        );
+        if (!response.ok) return;
+
+        const json = await response.json();
+        const value = json?.data?.value;
+        if (value && value.trim()) {
+          setAnnouncementText(value);
+        }
+      } catch (error) {
+        console.error("Failed to fetch announcement bar text, using default:", error);
+      } finally {
+        setAnnouncementReady(true);
+      }
+    };
+
+    fetchAnnouncement();
+  }, []);
+
+  // Static categories are only used if the request fails (set in the catch above)
+  const navCategories = categories;
+
+  const totalPrice = cart.reduce((sum, item) => {
+    const product =
+      products.find((p) => String(p.id) === String(item.id)) || {};
+
+    const rawPrice =
+      product.sale_price ?? product.price ?? item.sale_price ?? item.price ?? 0;
+
+    const itemPrice = Number(rawPrice) || 0;
+    return sum + itemPrice * item.quantity;
+  }, 0);
+
+  // Hide header on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      if (isMobileMenuOpen || currentScrollY < 100) {
+        setIsVisible(true);
+      } else if (currentScrollY > lastScrollY) {
+        setIsVisible(false);
+      } else {
+        setIsVisible(true);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY, isMobileMenuOpen]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDarkMode) {
+      root.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      root.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const toggleMobileCategory = (index) => {
+    setActiveMobileCategory(activeMobileCategory === index ? null : index);
+  };
+
+  return (
+    <header
+      className={`w-full bg-white dark:bg-slate-900 border-b-2 border-blue-600 font-sans sticky top-0 left-0 right-0 z-50 shadow-md dark:shadow-xl transition-all duration-300 ease-in-out ${
+        isVisible ? "translate-y-0" : "-translate-y-full"
+      }`}
+    >
+      {/* Top Utility Bar */}
+      <div className="bg-blue-950 text-white text-xs py-1.5 border-b border-blue-900">
+        <div className="container mx-auto px-4 flex justify-between items-center gap-4">
+          {/* Tablet / desktop: static, centered inline with the support links */}
+          <div className="hidden sm:flex items-center space-x-2 min-w-0">
+            <svg
+              className="w-3.5 h-3.5 text-blue-400 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+            <span
+              className={`tracking-wide truncate transition-opacity duration-300 ${
+                announcementReady ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {announcementText}
+            </span>
+          </div>
+
+          {/* Mobile: the bar is too narrow for arbitrary admin-set text to
+              sit statically, so scroll it continuously instead of truncating
+              or wrapping it awkwardly. */}
+          <div
+            className={`sm:hidden flex-1 min-w-0 overflow-hidden transition-opacity duration-300 ${
+              announcementReady ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <div className="flex w-max animate-marquee items-center gap-10 whitespace-nowrap">
+              {[0, 1].map((i) => (
+                <span key={i} className="flex items-center gap-2 tracking-wide">
+                  <svg
+                    className="w-3.5 h-3.5 text-blue-400 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  {announcementText}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden md:flex items-center space-x-6 text-slate-300 shrink-0">
+            <Link to="/track-order" className="hover:text-blue-400 transition-colors">
+              Track Order
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Navbar Section */}
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center space-x-3 md:space-x-0">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-expanded={isMobileMenuOpen}
+            aria-label="Toggle Navigation Menu"
+            className="lg:hidden text-slate-700 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none p-2 rounded-lg bg-slate-100 dark:bg-slate-800 transition-colors relative w-10 h-10 flex items-center justify-center"
+          >
+            <div className="w-5 h-4 flex flex-col justify-between items-center relative">
+              <span
+                className={`w-full h-0.5 bg-current rounded-full transform transition-all duration-300 ease-in-out ${isMobileMenuOpen ? "rotate-45 translate-y-1.5" : ""}`}
+              />
+              <span
+                className={`w-full h-0.5 bg-current rounded-full transition-all duration-200 ease-in-out ${isMobileMenuOpen ? "opacity-0 scale-x-0" : "opacity-100"}`}
+              />
+              <span
+                className={`w-full h-0.5 bg-current rounded-full transform transition-all duration-300 ease-in-out ${isMobileMenuOpen ? "-rotate-45 -translate-y-2" : ""}`}
+              />
+            </div>
+          </button>
+
+          <Link to="/" className="flex items-center space-x-2.5 group">
+            <img
+              src={logoIcon}
+              alt="Gaming Corner"
+              className="w-10 h-10 rounded-lg object-cover shadow-lg shadow-blue-600/20 group-hover:opacity-90 transition-opacity"
+            />
+            <div className="hidden md:block group-hover:opacity-80 transition-opacity">
+              <img src={logoWordmarkNavy} alt="Gaming Corner" className="h-9 w-auto dark:hidden" />
+              <img src={logoWordmarkWhite} alt="Gaming Corner" className="h-9 w-auto hidden dark:block" />
+            </div>
+          </Link>
+        </div>
+
+        {/* Desktop Live Search Bar */}
+        <div className="hidden md:flex flex-1 max-w-2xl mx-6 relative" ref={searchRef}>
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative w-full flex"
+          >
+            <input
+              type="text"
+              value={searchQuery}
+              onFocus={() => searchQuery.trim().length >= 2 && setShowDropdown(true)}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search RTX 4090, Ryzen CPUs, Gaming Laptops..."
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 px-4 py-2.5 rounded-l-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-blue-600 dark:focus:border-blue-500 transition-colors text-sm"
+            />
+            <button
+              type="submit"
+              aria-label="Search"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-r-lg font-semibold transition-colors flex items-center justify-center"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </button>
+          </form>
+
+          {/* Live Search Preview Dropdown */}
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50">
+              {isSearching ? (
+                <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Searching products...
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {searchResults.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectProduct(item.id)}
+                      className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+                    >
+                      <img
+                        src={
+                          item.image_url
+                            ? item.image_url.startsWith("http")
+                              ? item.image_url
+                              : `${import.meta.env.VITE_API_BASE}${item.image_url}`
+                            : "/placeholder.png"
+                        }
+                        alt={item.name}
+                        className="w-12 h-12 object-cover rounded-md bg-slate-100 dark:bg-slate-800 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                          {item.name}
+                        </h4>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-bold font-mono mt-0.5">
+                          ${Number(item.sale_price || item.price).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={handleSearchSubmit}
+                    className="w-full p-2.5 text-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                  >
+                    View all results for "{searchQuery}"
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                  No products found for "{searchQuery}"
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Theme, Wishlist, Cart */}
+        <div className="flex items-center space-x-2.5 sm:space-x-4">
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            aria-label="Toggle Theme"
+            className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full hover:bg-slate-200 dark:hover:bg-blue-600 dark:hover:text-white transition-colors"
+          >
+            {isDarkMode ? (
+              <svg
+                className="w-5 h-5 text-amber-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5 text-slate-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                />
+              </svg>
+            )}
+          </button>
+
+          <Link
+            to="/wishlist"
+            className="relative p-2.5 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-blue-600 transition-colors group"
+          >
+            <svg
+              className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
+            </svg>
+            {totalWishlisted > 0 && (
+              <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {totalWishlisted}
+              </span>
+            )}
+          </Link>
+
+          <button
+            onClick={onOpenCart}
+            aria-label="Open Cart"
+            className="relative flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 px-3.5 py-2 rounded-lg transition-colors text-white"
+          >
+            <div className="relative">
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
+                />
+              </svg>
+              {totalItems > 0 && (
+                <span className="absolute -top-2 -right-2 bg-slate-900 text-blue-400 text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-blue-400">
+                  {totalItems}
+                </span>
+              )}
+            </div>
+            <span className="hidden md:inline text-sm font-bold tracking-wide font-mono">
+              ${totalPrice.toFixed(2)}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Search Input */}
+      <div className="px-4 pb-3 md:hidden">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="relative w-full flex"
+        >
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search GPUs, CPUs, RAM..."
+            className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 px-3 py-2 rounded-l-md border border-slate-300 dark:border-slate-700 focus:outline-none focus:border-blue-600 text-xs"
+          />
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded-r-md text-xs font-semibold"
+          >
+            Search
+          </button>
+        </form>
+      </div>
+
+      {/* Desktop Navigation */}
+      <nav className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/80 hidden lg:block transition-colors duration-200">
+        <div className="container mx-auto px-4">
+          <ul className="flex items-center space-x-8 text-sm font-medium text-slate-700 dark:text-slate-300">
+            {loadingCategories &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <li key={`skeleton-${i}`} className="py-3">
+                  <div className="h-5 w-24 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                </li>
+              ))}
+            {navCategories.map((cat, index) => (
+              <li key={cat.id || index} className="relative group py-3">
+                <Link
+                  to={cat.href}
+                  className={`inline-flex items-center space-x-1.5 transition-all ${
+                    cat.isHot
+                      ? "text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold"
+                      : "hover:text-blue-600 dark:hover:text-blue-400"
+                  }`}
+                >
+                  <span>{cat.name}</span>
+                  {cat.items && cat.items.length > 0 && (
+                    <svg
+                      className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  )}
+                  {cat.isHot && (
+                    <span className="bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 text-[10px] px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/30">
+                      HOT
+                    </span>
+                  )}
+                </Link>
+
+                {cat.items && cat.items.length > 0 && (
+                  <div className="absolute left-0 top-full hidden group-hover:block w-56 bg-white dark:bg-slate-900 border-t-2 border-blue-600 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-lg shadow-2xl z-50 py-2">
+                    {cat.items.map((subItem, subIdx) => (
+                      <Link
+                        key={subItem.id || subIdx}
+                        to={subItem.href}
+                        className="block px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {subItem.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </nav>
+
+      {/* Mobile Menu Drawer */}
+      <div
+        className={`lg:hidden grid transition-all duration-300 ease-in-out border-slate-200 dark:border-slate-800 ${isMobileMenuOpen ? "grid-rows-[1fr] opacity-100 border-t" : "grid-rows-[0fr] opacity-0 border-t-0"}`}
+      >
+        <div className="overflow-hidden bg-white dark:bg-slate-950 px-4 py-2">
+          <div className="flex items-center gap-2 py-2 border-b border-slate-100 dark:border-slate-800/60 mb-1">
+            <Link
+              to="/track-order"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="flex-1 text-center text-xs font-semibold px-3 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+            >
+              Track Order
+            </Link>
+          </div>
+
+          <div className="space-y-1 py-2">
+            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">
+              Categories
+            </span>
+
+            {loadingCategories &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={`skeleton-${i}`} className="px-2 py-3">
+                  <div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                </div>
+              ))}
+
+            {navCategories.map((cat, index) => (
+              <div
+                key={cat.id || index}
+                className="border-b border-slate-100 dark:border-slate-800/60 last:border-none"
+              >
+                <button
+                  onClick={() => toggleMobileCategory(index)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-left text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors text-sm font-medium"
+                >
+                  <span className="flex items-center space-x-2">
+                    <span>{cat.name}</span>
+                    {cat.isHot && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-100 dark:bg-blue-950/80 px-1.5 py-0.5 rounded">
+                        HOT
+                      </span>
+                    )}
+                  </span>
+                  {cat.items && cat.items.length > 0 && (
+                    <svg
+                      className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${activeMobileCategory === index ? "rotate-180 text-blue-600" : ""}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  )}
+                </button>
+
+                {cat.items && cat.items.length > 0 && (
+                  <div
+                    className={`grid transition-all duration-200 ease-in-out ${activeMobileCategory === index ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="pl-6 pr-3 py-1 space-y-1 bg-slate-50 dark:bg-slate-900/50 rounded-md my-1">
+                        {cat.items.map((subItem, subIdx) => (
+                          <Link
+                            key={subItem.id || subIdx}
+                            to={subItem.href}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="block py-2 text-xs text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {subItem.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
