@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { CartProvider } from './components/CartContext';
 import { WishlistProvider } from './components/WishlistContext';
 import MainLayout from './layouts/MainLayout';
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="wishlist" element={<WishlistPage />} />
             </Route>
           </Routes>
+          <Analytics />
         </BrowserRouter>
       </WishlistProvider>
     </CartProvider>
